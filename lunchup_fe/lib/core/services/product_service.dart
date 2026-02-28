@@ -63,22 +63,35 @@ class ProductService {
     required String category,
     String? imagePath,
   }) async {
-    final data = <String, dynamic>{
-      'name': name,
-      'description': description,
-      'price': price,
-      'stock': stock,
-      'category': category,
-    };
+    Response<dynamic> res;
 
     if (imagePath != null && imagePath.isNotEmpty) {
-      data['image_url'] = await MultipartFile.fromFile(imagePath);
-    }
+      // Laravel/PHP often ignores multipart payload on real PUT requests.
+      // Use POST + _method=PUT so all fields and file are parsed correctly.
+      final formData = FormData.fromMap({
+        '_method': 'PUT',
+        'name': name,
+        'description': description,
+        'price': price,
+        'stock': stock,
+        'category': category,
+        'image_url': await MultipartFile.fromFile(imagePath),
+      });
 
-    final res = await DioClient.client.put(
-      '/admin/products/$id',
-      data: FormData.fromMap(data),
-    );
+      res = await DioClient.client.post('/admin/products/$id', data: formData);
+    } else {
+      // No file attached: plain PUT JSON is simpler and reliable.
+      res = await DioClient.client.put(
+        '/admin/products/$id',
+        data: {
+          'name': name,
+          'description': description,
+          'price': price,
+          'stock': stock,
+          'category': category,
+        },
+      );
+    }
 
     if (res.statusCode != 200) {
       throw Exception('Gagal mengupdate produk');
